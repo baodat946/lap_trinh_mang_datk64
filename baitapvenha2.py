@@ -9,7 +9,7 @@ if response.status_code == 200:
     soup = BeautifulSoup(response.content, 'html.parser')
     
     # Tìm tất cả các thẻ div chứa hình ảnh meme template
-    memes = soup.find_all('div', class_='mt-box')  # Cập nhật với class thực tế
+    memes = soup.find_all('div', class_='mt-box')  # Cập nhật với class thực tế  
     
     with open('meme_image_urls.txt', 'w', encoding='utf-8') as file:
         for meme in memes:
