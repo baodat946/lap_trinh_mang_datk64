@@ -1,16 +1,27 @@
 import socket
 
-def get_stock_price(stock_code):
-    client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    client_socket.connect(('localhost', 12345))
+def send_stock_symbol(symbol, host='localhost', port=65432):
+    try:
+        # Create a TCP/IP socket
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            # Connect to the server
+            print(f"Connecting to {host} on port {port}...")
+            s.connect((host, port))
 
-    client_socket.send(stock_code.encode())
-    price = client_socket.recv(1024).decode()
-    client_socket.close()
+            # Send stock symbol to the server
+            print(f"Sending stock symbol: {symbol}")
+            s.sendall(symbol.encode())
 
-    return price
+            # Receive response from the server
+            data = s.recv(1024)
+            print(f"Received from server: {data.decode()}")
+    
+    except ConnectionRefusedError:
+        print(f"Error: Unable to connect to the server at {host}:{port}")
+    except socket.error as e:
+        print(f"Socket error: {e}")
 
 if __name__ == "__main__":
-    stock_code = input("Nhập mã chứng khoán: ")
-    price = get_stock_price(stock_code)
-    print(f"Giá hiện tại của {stock_code}: {price}")
+    symbol = input("Enter stock symbol: ")
+    send_stock_symbol(symbol)
+

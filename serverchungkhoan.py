@@ -1,33 +1,57 @@
 import socket
 import requests
-from bs4 import BeautifulSoup
+import threading
 
-def get_stock_price(stock_code):
-    url = f"https://iboard.ssi.com.vn/stock/{stock_code}"
-    response = requests.get(url)
-    soup = BeautifulSoup(response.content, 'html.parser')
-    
-    # Tìm giá chứng khoán trong trang (cần điều chỉnh nếu cấu trúc HTML thay đổi)
-    price_tag = soup.find('div', class_='current-price')  # Giả sử có class như vậy
-    if price_tag:
-        return price_tag.text.strip()
-    return "Giá không tìm thấy."
+# API key cần được thay thế bằng key của bạn
+API_KEY = "your_alpha_vantage_api_key"
 
-def start_server():
-    server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server_socket.bind(('localhost', 12345))
-    server_socket.listen(5)
-    print("Server đang chạy...")
+# Hàm lấy giá cổ phiếu từ Alpha Vantage
+def get_stock_price(symbol):
+    url = f"https://www.alphavantage.co/query?function=TIME_SERIES_INTRADAY&symbol={symbol}&interval=1min&apikey={API_KEY}"
+    try:
+        response = requests.get(url, timeout=5)
+        response.raise_for_status()  # Ném ngoại lệ nếu trạng thái không phải 200
+        data = response.json()
+        # Kiểm tra dữ liệu hợp lệ
+        if "Time Series (1min)" in data:
+            time_series = data["Time Series (1min)"]
+            latest_time = list(time_series.keys())[0]
+            stock_price = time_series[latest_time]["1. open"]
+            return f"Giá hiện tại của {symbol} là {stock_price}"
+        else:
+            return "Không tìm thấy thông tin cho mã chứng khoán này."
+    except requests.exceptions.HTTPError as http_err:
+        return f"Lỗi HTTP: {http_err}"
+    except requests.exceptions.ConnectionError:
+        return "Không thể kết nối tới API. Kiểm tra kết nối mạng."
+    except requests.exceptions.Timeout:
+        return "Yêu cầu API bị hết thời gian chờ."
+    except requests.exceptions.RequestException as e:
+        return f"Lỗi khác: {str(e)}"
 
-    while True:
-        client_socket, addr = server_socket.accept()
-        print(f"Kết nối từ {addr}")
-        stock_code = client_socket.recv(1024).decode()
-        print(f"Mã chứng khoán nhận được: {stock_code}")
+# Hàm xử lý kết nối client
+def handle_client(conn, addr):
+    print(f"Kết nối từ {addr}")
+    with conn:
+        while True:
+            data = conn.recv(1024)
+            if not data:
+                break
+            stock_symbol = data.decode()
+            print(f"Nhận mã chứng khoán: {stock_symbol}")
+            stock_price = get_stock_price(stock_symbol)
+            conn.sendall(stock_price.encode())
 
-        price = get_stock_price(stock_code)
-        client_socket.send(price.encode())
-        client_socket.close()
+# Hàm khởi động server
+def start_server(host='localhost', port=65432):
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind((host, port))
+        s.listen()
+        print(f"Server đang chạy trên {host}:{port}")
+        while True:
+            conn, addr = s.accept()
+            client_thread = threading.Thread(target=handle_client, args=(conn, addr))
+            client_thread.start()
 
 if __name__ == "__main__":
     start_server()
